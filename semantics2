@@ -1,0 +1,233 @@
+Small-step Semantic
+
+The main structures in the Combinatron are the "read heads" and the heap.
+Program bytecode is stored on the heap. There are three read heads. Each is a
+set of four registers. The read heads are used to keep track of context when
+moving into and out of a subexpression. Additionally there exists a register to
+hold the address of the current instruction, and a single "value" register to
+hold values that are read and values to be written. The three read heads are
+modelled as contiguous lists, while the two registers are simply values. The
+primary read head always holds the current instruction. In the following rules,
+the primary read head is always on the bottom.
+
+There are 8 instructions in total for the Combinatron, one of which is not
+user-programmable. That is, it is created as a side effect during execution.
+The instructions are as follows:
+
+General Combinators:
+B - B x y z = x (y z)
+C - C x y z = x z y
+K - K x y = x
+W - W x y = x y y
+
+Nesting Instructions:
+N - move into subexpression
+M - move out of subexpression, not intended to be user-programmable
+
+Side-Effects:
+G - get value at address
+P - put value at address
+
+Instructions are represented as homogenously sized words, with a few bits for
+the instruction type, and the remaining bits for any address required. As
+you'll see, this allows for in-place reductions. Instructions also have a
+single bit signalling grouping. All contiguous instructions with the same
+grouping bit are considered part of the same group.
+
+Generally when following these semantics underscores indicate new words that
+have been shifted in. This happens because for the most part reductions place
+their results as far right as possible while incrementing the program counter.
+So new words are effectively shifted in to the read head.
+
+Semantics of Nesting:
+
+Following a nest:
+
+<h2_0, h2_1, h2_2, h2_3>    <h1_0, h1_1, h1_2, h1_3>
+<h1_0, h1_1, h1_2, h1_3> -> <M(h1),  a1,   a2,   a3>
+<N(1),    a1,  a2,   a3>    <    p, a1',  a2',  a3'>
+
+Following a nest loads the first four words located at the referenced address
+into a read head. The data in the top-most read head (h2) is dropped.
+Simultaneously, the N instruction is converted into an M instruction whose
+address field points to the address of the instructions located in read head
+h1.
+
+Returning from a nest:
+
+<M(h3), h2_1, h2_2, h2_3>    <M(h4), h3_1, h3_2, h3_3>
+<M(h2), h1_1, h1_2, h1_3> -> <M(h3), h2_1, h2_2, h2_3>
+<    t,    0,    0,    0>    <    t, h1_1, h1_2, h1_3>
+
+A nested expression can only be moved out of if there are either 1 or 0 words
+in the primary read with an instruction in them. If there is only one word then
+it is copied upwards into the next read head. The address of the topmost return
+instruction is then used to fetch the data for the newly freed read head. A
+similar process happens if there are 0 words, however the next highest read
+head is simply made the primary read head and the program counter is
+incremented. A situation where there are 0 words in a subexpression only
+happens during normal operation in certain cases of B and K reduction.
+
+Reduction rules:
+
+The reduction rules are split into "simple" reductions, in which all the
+arguments are available on the primary read head, and "complex" reductions in
+which arguments must be retrieved from multiple read heads.
+
+Simple reductions:
+
+K reduction:
+<K, a1, a2, a3> -> <a1, a3, _, _>
+ _   _   _   _       _   _
+
+W reduction:
+<W, a1, a2, a3> -> <a1, a2, a2, a3>
+ _   _   _   _       _   _   _   _
+
+C reduction:
+<C, a1, a2, a3> -> <a1, a3, a2, _>
+ _   _   _   _       _   _   _
+B reduction:
+<B, a1, a2, a3> -> <a2, a3, a1, N>
+ _   _   _   _       -   -   _  _
+The program counter finishes at a1 here. N points to the newly created (a2, a3) subexpression.
+
+Complex reductions:
+Notice that in complex reductions, words in read heads other than the primary can be modified.
+Note that the M instructions here are assumed to point to their obvious locations.
+
+K reduction:
+<M, a2, a3, a4> -> < M,  _,  _, _>
+ _   _   _   _       _   _   _   _
+[K, a1,  0,  0]    [a1, a3, a4, _]
+ _   _   -   -       -   -   -   -
+
+W reduction:
+<M, a2, a3, a4> -> < M, a2, a3, a4>
+ _   _   _   _       _   _   _   _
+[W, a1,  0,  0]    [a1, a2,  0,  0]
+ _   _   -   -       _   _   -   -
+
+C reduction:
+<M, a3, a4, a5> -> < M, a2, a4, a5>
+ _   _   _   _       _   _   _   _
+[C, a1, a2,  0]    [a1, a3,  0,  0]
+ _   _   _   -       _   _   -   -
+
+<M, a2, a3, a4> -> < M, a3, a2, a4>
+ _   _   _   _       _   _   _   _
+[C, a1,  0,  0]    [a1,  0,  0,  0]
+ _   _   -   -       _   -   -   -
+
+<M, a3, a4, a5>    < M, a2, a4, a5>
+ _   _   _   _       _   _   _   _
+<M, a2,  0,  0> -> < M, a3,  0,  0>
+ _   _   -   -       _   _   -   -
+[C, a1,  0,  0]    [a1,  0,  0,  0]
+ _   _   -   -       _   -   -   -
+
+B reduction:
+<M, a3, a4, a5> -> < M,  N, a4, a5>
+ _   _   _   _       _   _   _   _
+[B, a1, a2,  0]    [a2, a3, a1,  0]
+ _   _   _   -       -   -   _   -
+N points to the newly created (a2, a3) subexpression.
+The program counter finishes at a1 here.
+
+<M, a2, a3, a4> -> [ a1, N, a4, _]
+ _   _   _   _       _   _  _  _
+[B, a1,  0,  0]    <a2, a3, 0,  0>
+ _   _   -   -       -   -   -   -
+N points to the newly created (a2, a3) subexpression.
+Execution proceeds as if every instruction in the primary head were null.
+
+<M, a3, a4, a5>    < M,  N, a4, a5>
+ _   _   _   _       _   _   _   _
+<M, a2,  0,  0> -> [ a1, 0,  0,  0]
+ _   _   -   -       _   _   -   -
+[B, a1,  0,  0]    <a2, a3,  0,  0>
+ _   _   -   -       -   -   -   -
+N points to the newly created (a2, a3) subexpression.
+Execution proceeds as if every instruction in the primary head were null.
+
+Side Effects:
+Both side effecting instructions behave like I combinators, but with specific
+side effects. Because they only take a single argument, G and P combinators are
+always simple reductions.
+
+<G, a1, a2, a3> -> <a1, a2, a3, _>
+ _   _   _   _       _   _   _  _
+Contents of address pointed to by G are read into value register.
+
+<P, a1, a2, a3> -> <a1, a2, a3, _>
+ _   _   _   _       _   _   _  _
+Contents of value register are written into addressed pointed by P.
+
+Halting:
+The halting states are straightforward. If all read heads but the primary are
+empty, and there aren't enough words in the primary head to reduce the current
+instruction the machine halts.
+
+<0,  0,  0, 0>
+<0,  0,  0, 0> -> Halt
+<B, a1, a2, 0>
+ _   _   _  -
+
+<0,  0, 0, 0>
+<0,  0, 0, 0>  -> Halt
+<B, a1, 0, 0>
+ _   _  -  -
+
+<0,  0, 0, 0>
+<M, a2, 0, 0>  -> Halt
+ _   _  -  -
+<B, a1, 0, 0>
+ _   _  -  -
+
+<0,  0,  0, 0>
+<0,  0,  0, 0> -> Halt
+<C, a1, a2, 0>
+ _   _   _  -
+
+<0,  0, 0, 0>
+<0,  0, 0, 0>  -> Halt
+<C, a1, 0, 0>
+ _   _  -  -
+
+<0,  0, 0, 0>
+<M, a2, 0, 0>  -> Halt
+ _   _  -  -
+<C, a1, 0, 0>
+ _   _  -  -
+
+<0,  0, 0, 0>
+<0,  0, 0, 0>  -> Halt
+<W, a1, 0, 0>
+ _   _  -  -
+
+<0,  0, 0, 0>
+<0,  0, 0, 0>  -> Halt
+<K, a1, 0, 0>
+ _   _  -  -
+
+<0, 0, 0, 0>
+<0, 0, 0, 0>   -> Halt
+<G, 0, 0, 0>
+ _  -  -  -
+
+<0, 0, 0, 0>
+<0, 0, 0, 0>   -> Halt
+<P, 0, 0, 0>
+ _  -  -  -
+
+Theorem:
+Without side-effecting operations, at no point will a program ever use more
+memory then it started with.
+
+Theorem:
+The number of required read heads is the same as the maximum number of arguments for any instruction.
+
+Implementation notes:
+Only the primary read head ever has to shift values.
+Some reduction rules could be consolidated to eliminate further unnesting applications.
+When nesting/unnesting, read heads can be "rotated".
