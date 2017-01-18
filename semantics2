@@ -111,19 +111,19 @@ W reduction:
 C reduction:
 <M, a3, a4, a5> -> < M, a2, a4, a5>
  _   _   _   _       _   _   _   _
-[C, a1, a2,  0]    [a1, a3,  0,  0]
+[C, a1, a2,  0]    [a1, a3,  0,  _]
  _   _   _   -       _   _   -   -
 
 <M, a2, a3, a4> -> < M, a3, a2, a4>
  _   _   _   _       _   _   _   _
-[C, a1,  0,  0]    [a1,  0,  0,  0]
+[C, a1,  0,  0]    [a1,  0,  0,  _]
  _   _   -   -       _   -   -   -
 
 <M, a3, a4, a5>    < M, a2, a4, a5>
  _   _   _   _       _   _   _   _
 <M, a2,  0,  0> -> < M, a3,  0,  0>
  _   _   -   -       _   _   -   -
-[C, a1,  0,  0]    [a1,  0,  0,  0]
+[C, a1,  0,  0]    [a1,  0,  0,  _]
  _   _   -   -       _   -   -   -
 
 B reduction:
@@ -231,3 +231,10 @@ Implementation notes:
 Only the primary read head ever has to shift values.
 Some reduction rules could be consolidated to eliminate further unnesting applications.
 When nesting/unnesting, read heads can be "rotated".
+
+Reads/Writes from main memory:
+- Nesting both reads and writes
+- Unnesting both reads and writes
+- simple K and C reduction require reads
+- Complex C and K reduction require reads
+- Complex B reduction requires reads and writes
