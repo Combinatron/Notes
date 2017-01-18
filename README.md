@@ -5,13 +5,13 @@ experimental combinator reduction machine. Inspired in part by the Reduceron
 
 ## Definition (Stable)
 
-See (semantics2)[semantics2] for the current definition and operational
+See [semantics2](semantics2) for the current definition and operational
 semantics of the Combinatron. A more accessible version is needed, but this
 suffices for now.
 
 ## Virtual Implementation (WIP)
 
-See (emu.hs)[emu.hs] for a virtual implementation of the machine in Haskell.
+See [emu.hs](emu.hs) for a virtual implementation of the machine in Haskell.
 Ignore emu.c for now, it was mostly useful as an exploratory exercise and for
 figuring out memory layouts.
 
