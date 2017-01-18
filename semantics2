@@ -87,6 +87,7 @@ W reduction:
 C reduction:
 <C, a1, a2, a3> -> <a1, a3, a2, _>
  _   _   _   _       _   _   _
+
 B reduction:
 <B, a1, a2, a3> -> <a2, a3, a1, N>
  _   _   _   _       -   -   _  _
